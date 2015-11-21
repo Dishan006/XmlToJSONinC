@@ -19,7 +19,8 @@ struct Token {
 };
 
 struct TreeNode {
-struct Token * token;
+char* name;
+char* content;
 struct TreeNode *parent;  
 struct TreeNode *children[100];
 int childrenCount;
@@ -30,9 +31,12 @@ FILE* getFile();
 struct Token *tokenize(FILE *file);
 bool isUsableToken(char *text);
 void printTokenList(struct Token *root);
-struct Token * addTokenToList(char* text, struct Token *current, int n);
-void buildTree(struct Token* root);
+struct Token* addTokenToList(char* text, struct Token *current, int n);
+struct TreeNode *buildTree(struct Token* root);
 TokenType getTokenType(struct Token* token);
+void treverseTree(struct TreeNode *current);
+char* getTextFromToken(char* tokenText);
+struct TreeNode* AddTokenToTreeNode(struct TreeNode *treeNode, struct Token *token);
 
 
 int main(int argc, char** argv) {
@@ -44,7 +48,8 @@ int main(int argc, char** argv) {
     
     struct Token * root = tokenize(file);
     // printTokenList(root);
-    buildTree(root);
+    struct TreeNode *treeRoot = buildTree(root);
+    treverseTree(treeRoot);
     return (EXIT_SUCCESS);
 }
 
@@ -103,11 +108,12 @@ struct Token * tokenize(FILE* file)
     return root;
 }
 
-void buildTree(struct Token* root)
+struct TreeNode* buildTree(struct Token* root)
 {
     struct Token *current = root;
     struct TreeNode *treeRoot = malloc( sizeof(struct TreeNode) );
-    treeRoot->token = NULL;
+    treeRoot->name = NULL;
+    treeRoot->content = NULL;
     treeRoot->childrenCount = 0;
     struct TreeNode *currentTreeNode = treeRoot;
 
@@ -116,31 +122,40 @@ void buildTree(struct Token* root)
         if(current->text!=NULL)
         {
             TokenType type = getTokenType(current);
+            char* text = getTextFromToken(current->text);
 
             if(type == StartTag)
             {
-               printf("Start Tag: %s\n",current->text); 
+               //printf("Start Tag: %s\n",text); 
 
-               if(currentTreeNode->token == NULL)
+               if(currentTreeNode->name == NULL)
                {
-                    currentTreeNode->token = current;
+                    currentTreeNode = AddTokenToTreeNode(currentTreeNode,current);
                }else
                {
-                    printf("Added Child: %d to: %s\n",currentTreeNode->childrenCount,currentTreeNode->token->text); 
+                    //printf("Added Child: %d to: %s\n",currentTreeNode->childrenCount,currentTreeNode->token->text); 
                     struct TreeNode *createdNode = malloc( sizeof(struct TreeNode) ); 
+                    createdNode->name == NULL;
+                    createdNode->childrenCount =0;
+                    createdNode = AddTokenToTreeNode(createdNode,current);
+
+                    createdNode->content = NULL;
+                    
                     currentTreeNode->children[currentTreeNode->childrenCount] = createdNode;
                     currentTreeNode->childrenCount++;
                     createdNode->parent = currentTreeNode;
-                    createdNode->token = current;
-                    createdNode->childrenCount =0;
+                    
                     currentTreeNode = createdNode;
                }
                
             }
             else if(type == EndTag)
             {
-                printf("End Tag: %s\n",current->text); 
+                //printf("End Tag: %s\n",current->text); 
                 currentTreeNode = currentTreeNode->parent;
+            }else
+            {
+                currentTreeNode->content = text;
             }
             
         }
@@ -148,6 +163,26 @@ void buildTree(struct Token* root)
         current = current->next;
     }
 
+    return treeRoot;
+}
+
+void treverseTree(struct TreeNode *current)
+{
+    
+
+    if(current->childrenCount==0)
+    {
+        printf("%s : %s\n", getTextFromToken(current->name) ,current->content); 
+        return;
+    }
+
+    printf("%s\n", getTextFromToken(current->name)); 
+
+    int i;
+    for(i=0;i<current->childrenCount;i++)
+    {
+        treverseTree(current->children[i]);
+    }
 }
 
 TokenType getTokenType(struct Token* token)
@@ -245,4 +280,103 @@ long getLength(FILE* file)
     long size = ftell(file);
     fseek(file, 0L, SEEK_SET);
     return size;
+}
+
+char* getTextFromToken(char* tokenText)
+{
+    char* newText = NULL;
+    char current;
+    int newTextLength=0;
+    int count =0;
+    do
+    {
+        current = (char)tokenText[count++];
+        if(current!='<' && current!='>')
+        {
+            newText = realloc(newText, newTextLength+1);
+            newText[newTextLength++] = current;
+        }
+        
+    }while(current != '\0');
+
+    return newText;
+}
+
+struct TreeNode *AddTokenToTreeNode(struct TreeNode *treeNode, struct Token *token)
+{
+    char* tokenText =  token->text;
+    treeNode->name = NULL;
+    
+    char* newText = NULL;
+    char current;
+    char* key = NULL;
+    char* value = NULL;
+    int newTextLength=0;
+    int count =0;
+    bool isInLeteralString = false;
+    do
+    {
+        current = (char)tokenText[count++];
+
+        if(current=='"')
+        {
+            isInLeteralString =!isInLeteralString;
+            continue;
+        }
+
+        if((current==' ' || current=='=' || current=='>') && !isInLeteralString)
+        {
+            newText = realloc(newText, newTextLength+1);
+            newText[newTextLength++] = '\0';
+
+            if(treeNode->name==NULL)
+            {
+                treeNode->name = newText;
+            }else if(key==NULL)
+            {
+
+                key = newText;
+            }else if(value==NULL)
+            {
+                value = newText;
+            }
+            
+            newText = NULL;
+            newTextLength=0;
+
+            continue; // skip this char
+        }
+
+        if(current!='<' && current!='>')
+        {
+            newText = realloc(newText, newTextLength+1);
+            newText[newTextLength++] = current;
+        }
+
+       if(key!=NULL && value!=NULL)
+        {   
+            // Add a new child node for the attribute.
+            struct TreeNode *createdNode = malloc( sizeof(struct TreeNode) ); 
+            treeNode->children[treeNode->childrenCount] = createdNode;
+            treeNode->childrenCount++;
+            createdNode->parent = treeNode; 
+            createdNode->childrenCount =0;
+            createdNode->name = key;
+            createdNode->content = value;
+
+            key = NULL;
+            value = NULL;
+        } 
+        
+    }while(current != '\0');
+
+    // No attributes in this node.
+    if(treeNode->name==NULL)
+    {
+     newText = realloc(newText, newTextLength+1);
+     newText[newTextLength++] = '\0';
+     treeNode->name = newText;
+    }
+     
+    return treeNode;
 }
