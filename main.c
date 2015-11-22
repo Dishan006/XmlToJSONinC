@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 enum TokenTypeEnum{ StartTag, EndTag, String, None };
 
@@ -34,9 +35,12 @@ void printTokenList(struct Token *root);
 struct Token* addTokenToList(char* text, struct Token *current, int n);
 struct TreeNode *buildTree(struct Token* root);
 TokenType getTokenType(struct Token* token);
-void treverseTree(struct TreeNode *current);
+void treverseTree(struct TreeNode *current,  bool isLastChild, bool isArrayElement);
 char* getTextFromToken(char* tokenText);
 struct TreeNode* AddTokenToTreeNode(struct TreeNode *treeNode, struct Token *token);
+bool areChildrenInArray(struct TreeNode *treeNode);
+char* appendToString(char* original, char* toAppend);
+char* buildJsonFromTree(struct TreeNode *current, char* currentString, bool isLastChild, bool isArrayElement);
 
 
 int main(int argc, char** argv) {
@@ -49,7 +53,10 @@ int main(int argc, char** argv) {
     struct Token * root = tokenize(file);
     // printTokenList(root);
     struct TreeNode *treeRoot = buildTree(root);
-    treverseTree(treeRoot);
+    // treverseTree(treeRoot, true, false);
+    char* json = NULL;
+    json = buildJsonFromTree(treeRoot,json,true,false);
+    printf("%s\n", json);
     return (EXIT_SUCCESS);
 }
 
@@ -166,23 +173,112 @@ struct TreeNode* buildTree(struct Token* root)
     return treeRoot;
 }
 
-void treverseTree(struct TreeNode *current)
+void treverseTree(struct TreeNode *current,  bool isLastChild, bool isArrayElement)
 {
-    
-
     if(current->childrenCount==0)
     {
-        printf("%s : %s\n", getTextFromToken(current->name) ,current->content); 
+        printf("\"%s\" : \"%s\"", current->name ,current->content); 
+
+        if(!isLastChild)
+        {
+             printf(","); 
+        }
+
+        printf("\n"); 
         return;
     }
 
-    printf("%s\n", getTextFromToken(current->name)); 
+    printf("{"); 
 
+    if(!isArrayElement)
+    {
+       printf("%s :", current->name);  
+    }
+    
     int i;
+    bool childrenInArray = areChildrenInArray(current);
+
+    if(childrenInArray)
+    {
+        printf("{%s :[ \n", current->children[0]->name); 
+    }
+
     for(i=0;i<current->childrenCount;i++)
     {
-        treverseTree(current->children[i]);
+        bool isThisLastChild = (i==(current->childrenCount-1));
+        treverseTree(current->children[i], isThisLastChild, childrenInArray);
     }
+
+    if(childrenInArray)
+    {
+        printf("]}\n"); 
+    }
+
+    printf("}"); 
+    if(!isLastChild)
+    {
+         printf(","); 
+    }
+    printf("\n");    
+}
+
+char* buildJsonFromTree(struct TreeNode *current, char* currentString, bool isLastChild, bool isArrayElement)
+{
+    if(current->childrenCount==0)
+    {
+        currentString = appendToString(currentString,"\"\0");
+        currentString = appendToString(currentString,current->name);
+        currentString = appendToString(currentString,"\" : \"\0");
+        currentString = appendToString(currentString,current->content); 
+        currentString = appendToString(currentString,"\"\0");
+
+        if(!isLastChild)
+        { 
+             currentString = appendToString(currentString,",\0");
+        }
+
+        currentString = appendToString(currentString,"\n\0"); 
+        return;
+    }
+
+    currentString = appendToString(currentString,"{ \0");
+
+    if(!isArrayElement)
+    {
+        currentString = appendToString(currentString,"\"\0");
+        currentString = appendToString(currentString,current->name);
+        currentString = appendToString(currentString,"\" :\0");
+    }
+    
+    int i;
+    bool childrenInArray = areChildrenInArray(current);
+
+    if(childrenInArray)
+    {
+         currentString = appendToString(currentString,"{ \"\0");
+         currentString = appendToString(currentString,current->children[0]->name);
+         currentString = appendToString(currentString,"\" : [ \n\0");
+    }
+
+    for(i=0;i<current->childrenCount;i++)
+    {
+        bool isThisLastChild = (i==(current->childrenCount-1));
+        currentString = buildJsonFromTree(current->children[i],currentString, isThisLastChild, childrenInArray);
+    }
+
+    if(childrenInArray)
+    {
+        currentString = appendToString(currentString,"]}\n\0");
+    }
+
+    currentString = appendToString(currentString,"}\0");
+
+    if(!isLastChild)
+    {
+           currentString = appendToString(currentString,",\0");
+    }
+  
+    return appendToString(currentString,"\n\0");
 }
 
 TokenType getTokenType(struct Token* token)
@@ -379,4 +475,61 @@ struct TreeNode *AddTokenToTreeNode(struct TreeNode *treeNode, struct Token *tok
     }
      
     return treeNode;
+}
+
+bool areChildrenInArray(struct TreeNode *treeNode)
+{
+    if(treeNode==NULL)
+    {
+        return false;
+    }
+
+    if(treeNode->childrenCount==0)
+    {
+        return false;
+    }
+
+    int i=0;
+    char* childName= NULL;
+
+    for(i=0;i<treeNode->childrenCount;i++)
+    {
+       char* currentChildName = treeNode->children[i]->name;
+
+       if(childName==NULL)
+       {
+        childName = currentChildName;
+        continue;
+       }
+
+       if(strcmp(childName, currentChildName)!=0)
+       {
+            return false;
+       }
+
+    }
+
+    return true;
+}
+
+char* appendToString(char* original, char* toAppend)
+{
+    int length =0;
+    bool isOriginalNull =false;
+    if(original==NULL)
+    {
+        length = strlen(toAppend)+1;
+        isOriginalNull = true;
+    }else
+    {
+        length = strlen(original)+strlen(toAppend)+1;
+    }
+
+    original = realloc(original,length);
+    if(isOriginalNull)
+    {
+        original[0] = '\0';
+    }
+    strcat(original,toAppend);
+    return original;
 }
