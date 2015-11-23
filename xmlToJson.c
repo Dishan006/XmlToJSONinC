@@ -33,6 +33,8 @@ struct TreeNode* AddTokenToTreeNode(struct TreeNode *treeNode, struct Token *tok
 bool areChildrenInArray(struct TreeNode *treeNode);
 char* appendToString(char* original, char* toAppend);
 char* buildJsonFromTree(struct TreeNode *current, char* currentString, bool isLastChild, bool isArrayElement);
+void freeTokenList(struct Token* root);
+void freeTree(struct TreeNode* current);
 
 char* convertToJson(FILE* file)
 {
@@ -41,7 +43,10 @@ char* convertToJson(FILE* file)
     struct TreeNode *treeRoot = buildTree(root);
     // treverseTree(treeRoot, true, false);
     char* json = NULL;
-    return buildJsonFromTree(treeRoot,json,true,false);
+    freeTokenList(root);
+    json = buildJsonFromTree(treeRoot,json,true,false);
+    freeTree(treeRoot);
+    return json;
 }
 
 struct Token * tokenize(FILE* file)
@@ -50,12 +55,11 @@ struct Token * tokenize(FILE* file)
     size_t n = 0;
     int c;
     
-    /* This won't change, or we would lose the list in memory */
-     struct Token *root;       
+    struct Token *root;       
     /* This will point to each node as it traverses the list */
      struct Token *current;  
 
-    root = malloc( sizeof(struct Token) );  
+    root = calloc(1, sizeof(struct Token) );  
     current = root; 
 
     while ((c = fgetc(file)) != EOF)
@@ -102,7 +106,7 @@ struct Token * tokenize(FILE* file)
 struct TreeNode* buildTree(struct Token* root)
 {
     struct Token *current = root;
-    struct TreeNode *treeRoot = malloc( sizeof(struct TreeNode) );
+    struct TreeNode *treeRoot = calloc(1, sizeof(struct TreeNode) );
     treeRoot->name = NULL;
     treeRoot->content = NULL;
     treeRoot->childrenCount = 0;
@@ -125,7 +129,7 @@ struct TreeNode* buildTree(struct Token* root)
                }else
                {
                     //printf("Added Child: %d to: %s\n",currentTreeNode->childrenCount,currentTreeNode->token->text); 
-                    struct TreeNode *createdNode = malloc( sizeof(struct TreeNode) ); 
+                    struct TreeNode *createdNode = calloc( 1, sizeof(struct TreeNode) ); 
                     createdNode->name == NULL;
                     createdNode->childrenCount =0;
                     createdNode = AddTokenToTreeNode(createdNode,current);
@@ -147,10 +151,8 @@ struct TreeNode* buildTree(struct Token* root)
             }else
             {
                 currentTreeNode->content = text;
-            }
-            
+            }  
         }
-
         current = current->next;
     }
 
@@ -292,7 +294,7 @@ struct Token * addTokenToList(char* text, struct Token *current, int n)
             
     current->text = text;
     /* Creates a node at the end of the list */
-    current->next = malloc( sizeof(struct Token) );  
+    current->next = calloc(1, sizeof(struct Token) );  
     current = current->next; 
     current->next = NULL;
     current->text = NULL;
@@ -312,6 +314,18 @@ void printTokenList(struct Token* root)
         }
 
          current = current->next;
+    }
+}
+
+void freeTokenList(struct Token* root)
+{
+    struct Token *current = root;
+    
+    while(current!= NULL)
+    {
+         struct Token *old = current;
+         current = current->next;
+         free(old);
     }
 }
 
@@ -415,7 +429,7 @@ struct TreeNode *AddTokenToTreeNode(struct TreeNode *treeNode, struct Token *tok
        if(key!=NULL && value!=NULL)
         {   
             // Add a new child node for the attribute.
-            struct TreeNode *createdNode = malloc( sizeof(struct TreeNode) ); 
+            struct TreeNode *createdNode = calloc(1, sizeof(struct TreeNode) ); 
             treeNode->children[treeNode->childrenCount] = createdNode;
             treeNode->childrenCount++;
             createdNode->parent = treeNode; 
@@ -469,9 +483,7 @@ bool areChildrenInArray(struct TreeNode *treeNode)
        {
             return false;
        }
-
     }
-
     return true;
 }
 
@@ -495,6 +507,22 @@ char* appendToString(char* original, char* toAppend)
     }
     strcat(original,toAppend);
     return original;
+}
+
+void freeTree(struct TreeNode* current)
+{
+    if(current==NULL)
+    {
+       return;
+    }
+    
+    int i;
+    for(i=0;i<current->childrenCount;i++)
+    {
+        freeTree(current->children[i]);
+    }
+    
+    free(current);
 }
 
 
